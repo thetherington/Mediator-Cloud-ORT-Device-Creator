@@ -37,10 +37,63 @@ class DeviceORTCreator:
             "grouping": {"tags": ["SDVN", "ORT"]},
         }
 
+        self.system_name = None
+
         for key, value in kwargs.items():
 
             if value:
                 setattr(self, key, value)
+
+            if key == "system_name":
+                self.device_template["grouping"]["tags"].append(self.system_name)
+
+    def process(self):
+
+        annotations = self.fetch_annotation()
+
+        if isinstance(annotations, dict):
+
+            with requests.Session() as http_session:
+
+                if self.logon(http_session):
+
+                    changes = 0
+
+                    device_data = self.fetch_devices(http_session)
+                    devices = device_data["devices"]
+
+                    for host, alias in annotations.items():
+
+                        for device in devices:
+
+                            if alias == device["identification"]["alias"]:
+
+                                if host not in device["identification"]["matchables"]:
+
+                                    device["identification"]["matchables"].append(host)
+                                    device["identification"]["control-ips"].append(host)
+
+                                break
+
+                        else:
+
+                            new_device = copy.deepcopy(self.device_template)
+
+                            new_device["identification"]["uid"] = str(uuid.uuid4())
+                            new_device["identification"]["alias"] = alias
+                            new_device["identification"]["matchables"].append(host)
+                            new_device["identification"]["control-ips"].append(host)
+
+                            devices.append(new_device)
+
+                            changes += 1
+
+                    # print(json.dumps(device_data, indent=1))
+                    self.push_devices(device_data, http_session)
+
+                    print(changes)
+
+                    self.logout()
 
     def fetch_annotation(self):
 
@@ -135,18 +188,13 @@ class DeviceORTCreator:
 
 def main():
 
-    params = {"address": "172.16.112.14"}
+    params = {"address": "172.16.112.14", "system_name": "US_TX1_Production"}
 
     ort_creator = DeviceORTCreator(**params)
 
     print(ort_creator.fetch_annotation())
 
-    with requests.Session() as http_session:
-
-        if ort_creator.logon(http_session):
-
-            print(ort_creator.fetch_devices(http_session))
-            print(ort_creator.logout(http_session))
+    ort_creator.process()
 
 
 if __name__ == "__main__":
