@@ -66,7 +66,7 @@ class DeviceORTCreator:
 
         return None
 
-    def logon(self, http_session):
+    def logon(self, http_session=requests):
 
         try:
 
@@ -85,7 +85,7 @@ class DeviceORTCreator:
 
         return None
 
-    def fetch_devices(self, http_session):
+    def fetch_devices(self, http_session=requests):
 
         try:
 
@@ -101,7 +101,7 @@ class DeviceORTCreator:
 
         return None
 
-    def push_devices(self, http_session, device_data):
+    def push_devices(self, device_data, http_session=requests):
 
         try:
 
@@ -119,7 +119,7 @@ class DeviceORTCreator:
 
         return None
 
-    def logout(self, http_session):
+    def logout(self, http_session=requests):
 
         try:
 
