@@ -14,7 +14,6 @@ class DeviceORTCreator:
 
         self.proto = "https"
         self.address = "127.0.0.1"
-        self.consul = "8501"
 
         self.username = "admin"
         self.password = "admin"
@@ -22,7 +21,7 @@ class DeviceORTCreator:
         self.device_route = "api/-/settings/device"
         self.logon_route = "api/v1/login"
         self.logout_route = "api/v1/logout"
-        self.annotation_route = "evertz/insite/common/node/ALL/applications/ALL-SYSTEM/catalog/annotation/catalog/ort-host-to-channelname"
+        self.annotation_route = "api/-/model/catalog/annotation/ort-host-to-channelname"
 
         self.headers = {"Content-Type": "application/json;charset=UTF-8"}
 
@@ -49,13 +48,13 @@ class DeviceORTCreator:
 
     def process(self):
 
-        annotations = self.fetch_annotation()
+        with requests.Session() as http_session:
 
-        if isinstance(annotations, dict):
+            if self.logon(http_session):
 
-            with requests.Session() as http_session:
+                annotations = self.fetch_annotation(http_session)
 
-                if self.logon(http_session):
+                if isinstance(annotations, dict):
 
                     changes = 0
 
@@ -88,31 +87,25 @@ class DeviceORTCreator:
 
                             changes += 1
 
-                    # print(json.dumps(device_data, indent=1))
-                    self.push_devices(device_data, http_session)
+                    if changes > 0:
+                        # print(json.dumps(device_data, indent=1))
+                        self.push_devices(device_data, http_session)
 
                     print(changes)
 
-                    self.logout()
+                self.logout()
 
-    def fetch_annotation(self):
+    def fetch_annotation(self, http_session):
 
         try:
 
-            url = "{}://{}:{}/v1/kv/{}".format(
-                self.proto, self.address, self.consul, self.annotation_route
-            )
+            url = "{}://{}/{}".format(self.proto, self.address, self.annotation_route)
 
-            headers = {"Content-Type": "application/x-www-form-urlencoded"}
-            params = {"raw": ""}
+            resp = http_session.get(url, headers=self.headers, verify=False)
 
-            with requests.Session() as http_session:
+            if resp.status_code == 200:
 
-                resp = http_session.get(url, headers=headers, params=params, verify=False)
-
-                if resp.status_code == 200:
-
-                    return json.loads(resp.text)
+                return json.loads(resp.text)
 
         except Exception as e:
             print(e)
@@ -191,8 +184,6 @@ def main():
     params = {"address": "172.16.112.14", "system_name": "US_TX1_Production"}
 
     ort_creator = DeviceORTCreator(**params)
-
-    print(ort_creator.fetch_annotation())
 
     ort_creator.process()
 
