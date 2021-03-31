@@ -173,10 +173,21 @@ def processData():
         try:
             annotationurl = 'https://'+hostname + \
                 '/api/-/model/catalog/annotation/'+annotationname
-            logger.info('Attempting to post annotation data (%s)' %
+            
+            # thetherington@evertz: 
+            # fetch the existing annoation data first, then if update the dictionary with the mediator ones
+            # then put back the annotation data set
+
+            logger.info('Attempting to fetch existing annotations (%s)' %
                         annotationurl)
-            annotationrequest = insitesession.put(annotationurl, json=json.loads(
-                locals()[dictname]), verify=False, timeout=15)
+
+            insite_annotations = insitesession.get(annotationurl, verify=False, timeout=15).json()
+            mediator_annotations = json.loads(locals()[dictname])
+            insite_annotations.update(mediator_annotations)
+
+            logger.info('Merged Annotations. Attempting to post annotation data (%s)' %
+                        annotationurl)
+            annotationrequest = insitesession.put(annotationurl, data=json.dumps(insite_annotations), headers={"Content-Type": "application/json;charset=UTF-8"}, verify=False, timeout=15)
             annotationstatuscode = annotationrequest.status_code
             annotationtext = annotationrequest.text
         except requests.exceptions.Timeout:
