@@ -72,6 +72,8 @@ class DeviceORTCreator:
                                     device["identification"]["matchables"].append(host)
                                     device["identification"]["control-ips"].append(host)
 
+                                    changes += 1
+
                                 break
 
                         else:
@@ -95,7 +97,7 @@ class DeviceORTCreator:
 
                 self.logout()
 
-    def fetch_annotation(self, http_session):
+    def fetch_annotation(self, http_session=requests):
 
         try:
 
