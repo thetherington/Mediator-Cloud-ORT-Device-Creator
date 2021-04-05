@@ -309,7 +309,7 @@ class DeviceORTCreator:
             )
 
             self.logger.info(
-                "Updated General - Host to Service Names with: %s keys" % len(annotations.keys())
+                "Updated General - Host to Service Names with: %s keys", len(annotations.keys())
             )
 
             return resp.status_code
