@@ -23,6 +23,7 @@ class DeviceORTCreator:
         self.proto = "https"
         self.address = "127.0.0.1"
         self.mediator_lookup = None
+        self.sync_service_names = None
 
         self.username = "admin"
         self.password = "admin"
@@ -31,6 +32,7 @@ class DeviceORTCreator:
         self.logon_route = "api/v1/login"
         self.logout_route = "api/v1/logout"
         self.annotation_route = "api/-/model/catalog/annotation/ort-host-to-channelname"
+        self.service_name_route = "api/-/model/catalog/annotation/general-host-to-servicename"
 
         self.headers = {"Content-Type": "application/json;charset=UTF-8"}
 
@@ -179,6 +181,11 @@ class DeviceORTCreator:
 
                             rtrn_devices = self.push_devices(device_data, http_session)
 
+                            # update the General - Host to Service Names with the device_data
+                            # note: the device location is found by getting the longest string in the tag list
+                            if self.sync_service_names:
+                                self.update_service_names(device_data, http_session)
+
                             self.logger.info("Returned %s Devices", len(rtrn_devices["devices"]))
                             self.logger.debug(json.dumps(device_data, indent=1))
 
@@ -279,6 +286,38 @@ class DeviceORTCreator:
         except Exception as e:
             self.logger.warning(e)
 
+    def update_service_names(self, device_data, http_session=requests):
+
+        try:
+
+            annotations = {}
+
+            url = "{}://{}/{}".format(self.proto, self.address, self.service_name_route)
+
+            service_name_db = http_session.get(url, headers=self.headers, verify=False).json()
+
+            for device in device_data["devices"]:
+
+                for host_name in device["identification"]["matchables"]:
+
+                    annotations.update({host_name: max(device["grouping"]["tags"], key=len)})
+
+            service_name_db.update(annotations)
+
+            resp = http_session.put(
+                url, data=json.dumps(service_name_db), headers=self.headers, verify=False
+            )
+
+            self.logger.info(
+                "Updated General - Host to Service Names with: %s keys" % len(annotations.keys())
+            )
+
+            return resp.status_code
+
+        except Exception as e:
+            self.logger.critical(e)
+            return None
+
 
 class MediatorServiceCollector:
     def __init__(self, logger=logging.getLogger(), **kwargs):
@@ -375,6 +414,7 @@ def main():
 
     params = {
         "address": "172.16.112.14",
+        "sync_service_names": True,
         # "system_name": "US_TX1_Production"
         "mediator": {
             "hosts": [
