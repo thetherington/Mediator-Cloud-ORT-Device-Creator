@@ -2,6 +2,7 @@ import copy
 import csv
 import json
 import uuid
+from pathlib import Path
 
 import requests
 import urllib3
@@ -21,7 +22,6 @@ annotation_servicename_url = "https://{}/api/-/model/catalog/annotation/general-
     insite
 )
 
-
 device_template = {
     "identification": {
         "uid": None,
@@ -37,7 +37,12 @@ device_list = []
 annotation_type = {}
 annotation_servicename = {}
 
-with open("_files\\cbs_mediator_import.csv", "r") as f:
+if Path("_files/cbs_mediator_import.csv").exists():
+    csv_file = Path("_files/cbs_mediator_import.csv")
+elif Path("cbs_mediator_import.csv").exists():
+    csv_file = Path("cbs_mediator_import.csv")
+
+with open(csv_file, "r") as f:
 
     reader = csv.reader(filter(lambda row: row[0] != "#", f))
 
@@ -56,76 +61,65 @@ with open("_files\\cbs_mediator_import.csv", "r") as f:
 
             device_list.append(device)
 
-            annotation_type.update({row[1]: device["grouping"]["tags"][1]})
-
             for match in device["identification"]["matchables"]:
+                annotation_type.update({match: device["grouping"]["tags"][1]})
                 annotation_servicename.update({match: device["grouping"]["tags"][2]})
 
-# print(json.dumps(device_list, indent=1))
+
+def post(http_session, url, data):
+
+    resp = http_session.post(
+        url,
+        headers={"Content-Type": "application/json;charset=UTF-8"},
+        data=json.dumps(data),
+        verify=False,
+    )
+
+    print("post", url, resp.status_code)
+
+    return resp
+
+
+def put(http_session, url, data):
+
+    resp = http_session.put(
+        url,
+        headers={"Content-Type": "application/json;charset=UTF-8"},
+        data=json.dumps(data),
+        verify=False,
+    )
+
+    print("put", url, resp.status_code)
+
+    return resp
+
+
+def get(http_session, url):
+
+    resp = http_session.get(
+        url, headers={"Content-Type": "application/json;charset=UTF-8"}, verify=False,
+    )
+
+    print("get", url, resp.status_code)
+
+    return json.loads(resp.text)
+
 
 with requests.Session() as http_session:
 
-    resp = http_session.post(
-        logon_url,
-        headers={"Content-Type": "application/json;charset=UTF-8"},
-        data=json.dumps({"username": "admin", "password": "admin"}),
-        verify=False,
-    )
+    post(http_session, logon_url, {"username": "admin", "password": "admin"})
 
-    print(resp.status_code)
-    print(resp.text)
-
-    device_db = http_session.get(
-        device_url,
-        headers={"Content-Type": "application/json;charset=UTF-8"},
-        data=json.dumps({}),
-        verify=False,
-    ).json()
+    device_db = get(http_session, device_url)
 
     device_db["devices"].extend(device_list)
-
     print(json.dumps(device_db, indent=1))
 
-    resp = http_session.post(
-        device_url,
-        headers={"Content-Type": "application/json;charset=UTF-8"},
-        data=json.dumps(device_db),
-        verify=False,
-    )
+    post(http_session, device_url, device_db)
 
-    print(resp)
-
-    annotation_type_db = http_session.get(
-        annotation_type_url,
-        headers={"Content-Type": "application/json;charset=UTF-8"},
-        data=json.dumps(annotation_type),
-        verify=False,
-    ).json()
-
+    annotation_type_db = get(http_session, annotation_type_url)
     annotation_type_db.update(annotation_type)
+    put(http_session, annotation_type_url, annotation_type_db)
 
-    resp = http_session.put(
-        annotation_type_url,
-        headers={"Content-Type": "application/json;charset=UTF-8"},
-        data=json.dumps(annotation_type_db),
-        verify=False,
-    )
-    print(resp)
-
-    annotation_servicename_db = http_session.get(
-        annotation_servicename_url,
-        headers={"Content-Type": "application/json;charset=UTF-8"},
-        data=json.dumps(annotation_type),
-        verify=False,
-    ).json()
-
+    annotation_servicename_db = get(http_session, annotation_servicename_url)
     annotation_servicename_db.update(annotation_servicename)
-
-    resp = http_session.put(
-        annotation_servicename_url,
-        headers={"Content-Type": "application/json;charset=UTF-8"},
-        data=json.dumps(annotation_servicename_db),
-        verify=False,
-    )
-    print(resp)
-
+    put(http_session, annotation_servicename_url, annotation_servicename_db)
