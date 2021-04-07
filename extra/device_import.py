@@ -10,16 +10,17 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 requests.packages.urllib3.disable_warnings()
 
-insite = "172.16.112.14"
+INSITE = "172.16.112.14"
+CSV_FILE = "cbs_mediator_import.csv"
 
-device_url = "https://{}/api/-/settings/device".format(insite)
-logon_url = "https://{}/api/v1/login".format(insite)
-logout_url = "https://{}/api/v1/logout".format(insite)
-annotation_type_url = "https://{}/api/-/model/catalog/annotation/general-host-to-devicetype".format(
-    insite
+DEVICE_URL = "https://{}/api/-/settings/device".format(INSITE)
+LOGON_URL = "https://{}/api/v1/login".format(INSITE)
+LOGOUT_URL = "https://{}/api/v1/logout".format(INSITE)
+ANNOTATION_TYPE_URL = "https://{}/api/-/model/catalog/annotation/general-host-to-devicetype".format(
+    INSITE
 )
-annotation_servicename_url = "https://{}/api/-/model/catalog/annotation/general-host-to-servicename".format(
-    insite
+ANNOTATION_SERVICENAME_URL = "https://{}/api/-/model/catalog/annotation/general-host-to-servicename".format(
+    INSITE
 )
 
 device_template = {
@@ -37,12 +38,13 @@ device_list = []
 annotation_type = {}
 annotation_servicename = {}
 
-if Path("_files/cbs_mediator_import.csv").exists():
-    csv_file = Path("_files/cbs_mediator_import.csv")
-elif Path("cbs_mediator_import.csv").exists():
-    csv_file = Path("cbs_mediator_import.csv")
+if Path("_files/" + CSV_FILE).exists():
+    csv_path = Path("_files/" + CSV_FILE)
 
-with open(csv_file, "r") as f:
+elif Path(CSV_FILE).exists():
+    csv_path = Path(CSV_FILE)
+
+with open(csv_path, "r") as f:
 
     reader = csv.reader(filter(lambda row: row[0] != "#", f))
 
@@ -66,9 +68,9 @@ with open(csv_file, "r") as f:
                 annotation_servicename.update({match: device["grouping"]["tags"][2]})
 
 
-def post(http_session, url, data):
+def post(session, url, data):
 
-    resp = http_session.post(
+    resp = session.post(
         url,
         headers={"Content-Type": "application/json;charset=UTF-8"},
         data=json.dumps(data),
@@ -80,9 +82,9 @@ def post(http_session, url, data):
     return resp
 
 
-def put(http_session, url, data):
+def put(session, url, data):
 
-    resp = http_session.put(
+    resp = session.put(
         url,
         headers={"Content-Type": "application/json;charset=UTF-8"},
         data=json.dumps(data),
@@ -94,9 +96,9 @@ def put(http_session, url, data):
     return resp
 
 
-def get(http_session, url):
+def get(session, url):
 
-    resp = http_session.get(
+    resp = session.get(
         url, headers={"Content-Type": "application/json;charset=UTF-8"}, verify=False,
     )
 
@@ -107,19 +109,19 @@ def get(http_session, url):
 
 with requests.Session() as http_session:
 
-    post(http_session, logon_url, {"username": "admin", "password": "admin"})
+    post(http_session, LOGON_URL, {"username": "admin", "password": "admin"})
 
-    device_db = get(http_session, device_url)
+    device_db = get(http_session, DEVICE_URL)
 
     device_db["devices"].extend(device_list)
     print(json.dumps(device_db, indent=1))
 
-    post(http_session, device_url, device_db)
+    post(http_session, DEVICE_URL, device_db)
 
-    annotation_type_db = get(http_session, annotation_type_url)
+    annotation_type_db = get(http_session, ANNOTATION_TYPE_URL)
     annotation_type_db.update(annotation_type)
-    put(http_session, annotation_type_url, annotation_type_db)
+    put(http_session, ANNOTATION_TYPE_URL, annotation_type_db)
 
-    annotation_servicename_db = get(http_session, annotation_servicename_url)
+    annotation_servicename_db = get(http_session, ANNOTATION_SERVICENAME_URL)
     annotation_servicename_db.update(annotation_servicename)
-    put(http_session, annotation_servicename_url, annotation_servicename_db)
+    put(http_session, ANNOTATION_SERVICENAME_URL, annotation_servicename_db)
