@@ -44,7 +44,7 @@ if Path("_files/" + CSV_FILE).exists():
 elif Path(CSV_FILE).exists():
     csv_path = Path(CSV_FILE)
 
-with open(csv_path, "r") as f:
+with open(str(csv_path), "r") as f:
 
     reader = csv.reader(filter(lambda row: row[0] != "#", f))
 
@@ -107,15 +107,71 @@ def get(session, url):
     return json.loads(resp.text)
 
 
+def remove_duplicate_devices(x_list, y_db):
+
+    # x = new list of devices
+    # y = fetched db
+
+    y_pops = []
+    x_pops = []
+
+    for index_y, y in enumerate(y_db["devices"]):
+
+        for index_x, x in enumerate(x_list):
+
+            if x["identification"]["alias"] == y["identification"]["alias"]:
+
+                # if this tests true, then the newly created one matches exactly as the one in insite
+                if set(x["identification"]["matchables"]) == set(
+                    y["identification"]["matchables"]
+                ) and set(x["grouping"]["tags"]) == set(y["grouping"]["tags"]):
+
+                    x_pops.append(index_x)
+                    x_list.pop(index_x)
+                    break
+
+                # if this tests true, then the hostname or ip has changed in the csv file. store the index
+                # to have the fetched device to be removed later from the list
+                elif set(x["identification"]["matchables"]) != set(
+                    y["identification"]["matchables"]
+                ) and set(x["grouping"]["tags"]) == set(y["grouping"]["tags"]):
+
+                    y_pops.append(index_y)
+                    break
+
+                # device aliases match, and matchables are matching in the csv and fetched devices,
+                # however the tags are different. possible the tag was wrong or device became something else.
+                elif set(x["identification"]["matchables"]) == set(
+                    y["identification"]["matchables"]
+                ) and set(x["grouping"]["tags"]) != set(y["grouping"]["tags"]):
+
+                    y_pops.append(index_y)
+                    break
+
+                # matchables are different and tags are different. this is a device with the
+                # same name/type but in another system.
+                else:
+                    continue
+
+    # pop out all the indexes found from the fetched device list
+    _ = [y_db["devices"].pop(pop) for pop in y_pops]
+
+    return len(x_pops), len(y_pops)
+
+
 with requests.Session() as http_session:
 
     post(http_session, LOGON_URL, {"username": "admin", "password": "admin"})
 
     device_db = get(http_session, DEVICE_URL)
+    print("Fetched %s Devices" % (len(device_db["devices"])))
+
+    count_x, count_y = remove_duplicate_devices(device_list, device_db)
+    _ = [print(x) for x in device_list]
+    print("Dropped %s from db" % (count_y), "Dropped %s from csv" % (count_x))
 
     device_db["devices"].extend(device_list)
-    print(json.dumps(device_db, indent=1))
-
+    print("Posting %s Devices" % (len(device_db["devices"])))
     post(http_session, DEVICE_URL, device_db)
 
     annotation_type_db = get(http_session, ANNOTATION_TYPE_URL)
