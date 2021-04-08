@@ -3,6 +3,7 @@ import copy
 import csv
 import json
 import uuid
+from itertools import product
 from pathlib import Path
 
 import requests
@@ -53,54 +54,27 @@ def get(session, url):
 
 def remove_duplicate_devices(x_list, y_db):
 
-    # x = new list of devices
-    # y = fetched db
+    y_count, x_count = len(y_db), len(x_list)
 
-    y_pops = []
-    x_pops = []
+    for y, x in product(y_db, x_list):
 
-    for index_y, y in enumerate(y_db["devices"]):
+        x_matchables = set(x["identification"]["matchables"])
+        y_matchables = set(y["identification"]["matchables"])
+        x_tags = set(x["grouping"]["tags"])
+        y_tags = set(y["grouping"]["tags"])
 
-        for index_x, x in enumerate(x_list):
+        if x["identification"]["alias"] == y["identification"]["alias"]:
 
-            if x["identification"]["alias"] == y["identification"]["alias"]:
+            # if this tests true, then the newly created one matches exactly as the one in insite
+            if (x_matchables == y_matchables) and (x_tags == y_tags):
+                x_list.remove(x)
 
-                # if this tests true, then the newly created one matches exactly as the one in insite
-                if set(x["identification"]["matchables"]) == set(
-                    y["identification"]["matchables"]
-                ) and set(x["grouping"]["tags"]) == set(y["grouping"]["tags"]):
+            # XOR test. if one is true and other is false, then a change has happened to an existing device
+            elif (x_matchables == y_matchables) ^ (x_tags == y_tags):
+                y_db.remove(y)
 
-                    x_pops.append(index_x)
-                    x_list.pop(index_x)
-                    break
-
-                # if this tests true, then the hostname or ip has changed in the csv file. store the index
-                # to have the fetched device to be removed later from the list
-                elif set(x["identification"]["matchables"]) != set(
-                    y["identification"]["matchables"]
-                ) and set(x["grouping"]["tags"]) == set(y["grouping"]["tags"]):
-
-                    y_pops.append(index_y)
-                    break
-
-                # device aliases match, and matchables are matching in the csv and fetched devices,
-                # however the tags are different. possible the tag was wrong or device became something else.
-                elif set(x["identification"]["matchables"]) == set(
-                    y["identification"]["matchables"]
-                ) and set(x["grouping"]["tags"]) != set(y["grouping"]["tags"]):
-
-                    y_pops.append(index_y)
-                    break
-
-                # matchables are different and tags are different. this is a device with the
-                # same name/type but in another system.
-                else:
-                    continue
-
-    # pop out all the indexes found from the fetched device list
-    _ = [y_db["devices"].pop(pop) for pop in y_pops]
-
-    return len(x_pops), len(y_pops)
+    # return counts
+    return (x_count - len(x_list)), (y_count - len(y_db))
 
 
 parser = argparse.ArgumentParser(description="inSITE device importer tool")
@@ -206,7 +180,7 @@ with requests.Session() as http_session:
     device_db = get(http_session, DEVICE_URL)
     print("Fetched %s Devices" % (len(device_db["devices"])))
 
-    count_x, count_y = remove_duplicate_devices(device_list, device_db)
+    count_x, count_y = remove_duplicate_devices(device_list, device_db["devices"])
     _ = [print(x) for x in device_list]
     print("Dropped %s from db" % (count_y), "Dropped %s from csv" % (count_x))
 
