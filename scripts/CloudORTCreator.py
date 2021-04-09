@@ -2,6 +2,7 @@ import copy
 import json
 import logging
 import logging.handlers
+import re
 import socket
 import sys
 import uuid
@@ -68,6 +69,24 @@ class DeviceORTCreator:
                 self.device_template["grouping"]["tags"].append(self.system_name)
 
     def process(self):
+        def hostname_ip_convert(device):
+
+            # regex pattern to match for valid ip in string like: ip-192.168.10.1
+            HOSTNAME_PATTERN = re.compile(
+                r"ip-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+            )
+
+            for key in ["matchables", "control-ips"]:
+
+                for hostname in device["identification"][key]:
+
+                    device["identification"][key].extend(
+                        [
+                            ".".join(x.groups())
+                            for x in HOSTNAME_PATTERN.finditer(hostname)
+                            if ".".join(x.groups()) not in device["identification"][key]
+                        ]
+                    )
 
         with requests.Session() as http_session:
 
@@ -112,9 +131,7 @@ class DeviceORTCreator:
                                         # break out - ignore this annotation
                                         if not tags:
 
-                                            self.logger.warning(
-                                                "Missing ORT from Mediator: %s", host
-                                            )
+                                            self.logger.error("Missing ORT from Mediator: %s", host)
                                             break
 
                                         # if all the tags from the system name lookup matches with devices, then
@@ -128,10 +145,15 @@ class DeviceORTCreator:
                                                 device["identification"]["matchables"].append(host)
                                                 device["identification"]["control-ips"].append(host)
 
+                                                hostname_ip_convert(device)
+
                                                 changes += 1
 
                                                 self.logger.warning(
-                                                    "ORT: %s Updated: %s", alias, host
+                                                    "ORT: %s Updated: %s -- %s",
+                                                    alias,
+                                                    host,
+                                                    max(device["grouping"]["tags"], key=len),
                                                 )
 
                                             # everthing matches - no changes
@@ -146,9 +168,16 @@ class DeviceORTCreator:
                                             device["identification"]["matchables"].append(host)
                                             device["identification"]["control-ips"].append(host)
 
+                                            hostname_ip_convert(device)
+
                                             changes += 1
 
-                                            self.logger.warning("ORT: %s Updated: %s", alias, host)
+                                            self.logger.warning(
+                                                "ORT: %s Updated: %s -- %s",
+                                                alias,
+                                                host,
+                                                max(device["grouping"]["tags"], key=len),
+                                            )
 
                                         # everthing matches - no changes
                                         break
@@ -169,9 +198,16 @@ class DeviceORTCreator:
                                         self.mediator_lookup.return_systems(host)
                                     )
 
+                                hostname_ip_convert(new_device)
+
                                 devices.append(new_device)
 
-                                self.logger.info("New Device added: %s (%s)", alias, host)
+                                self.logger.info(
+                                    "New Device added: %s (%s) -- %s",
+                                    alias,
+                                    host,
+                                    max(new_device["grouping"]["tags"], key=len),
+                                )
 
                                 changes += 1
 

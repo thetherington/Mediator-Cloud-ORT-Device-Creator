@@ -2,6 +2,7 @@ import argparse
 import copy
 import csv
 import json
+import re
 import uuid
 from itertools import product
 from pathlib import Path
@@ -75,6 +76,26 @@ def remove_duplicate_devices(x_list, y_db):
 
     # return counts
     return (x_count - len(x_list)), (y_count - len(y_db))
+
+
+def hostname_ip_convert(device_info):
+
+    # regex pattern to match for valid ip in string like: ip-192.168.10.1
+    HOSTNAME_PATTERN = re.compile(
+        r"ip-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+    )
+
+    for key in ["matchables", "control-ips"]:
+
+        for hostname in device_info["identification"][key]:
+
+            device_info["identification"][key].extend(
+                [
+                    ".".join(x.groups())
+                    for x in HOSTNAME_PATTERN.finditer(hostname)
+                    if ".".join(x.groups()) not in device_info["identification"][key]
+                ]
+            )
 
 
 parser = argparse.ArgumentParser(description="inSITE device importer tool")
@@ -165,6 +186,8 @@ with open(str(csv_path), "r") as f:
             device["identification"]["control-ips"].extend(row[1].split(";"))
 
             device["grouping"]["tags"].extend(row[4].split(";"))
+
+            hostname_ip_convert(device)
 
             device_list.append(device)
 
