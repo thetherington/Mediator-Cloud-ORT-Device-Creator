@@ -45,7 +45,9 @@ def put(session, url, data):
 def get(session, url):
 
     resp = session.get(
-        url, headers={"Content-Type": "application/json;charset=UTF-8"}, verify=False,
+        url,
+        headers={"Content-Type": "application/json;charset=UTF-8"},
+        verify=False,
     )
 
     print("get", url, resp.status_code)
@@ -100,7 +102,12 @@ def hostname_ip_convert(device_info):
 
 parser = argparse.ArgumentParser(description="inSITE device importer tool")
 parser.add_argument(
-    "-H", "--host", metavar="", required=False, default="127.0.0.1", help="IP to inSITE Server",
+    "-H",
+    "--host",
+    metavar="",
+    required=False,
+    default="127.0.0.1",
+    help="IP to inSITE Server",
 )
 group = parser.add_mutually_exclusive_group(required=True)
 group.add_argument("-F", "--file", metavar="", required=False, help="CSV File to Import")
@@ -122,15 +129,9 @@ CSV_FILE = args.file
 DEVICE_URL = "https://{}/api/-/settings/device".format(INSITE)
 LOGON_URL = "https://{}/api/v1/login".format(INSITE)
 LOGOUT_URL = "https://{}/api/v1/logout".format(INSITE)
-ANNOTATION_NAME_URL = "https://{}/api/-/model/catalog/annotation/general-host-to-devicename".format(
-    INSITE
-)
-ANNOTATION_TYPE_URL = "https://{}/api/-/model/catalog/annotation/general-host-to-devicetype".format(
-    INSITE
-)
-ANNOTATION_SERVICENAME_URL = "https://{}/api/-/model/catalog/annotation/general-host-to-servicename".format(
-    INSITE
-)
+ANNOTATION_NAME_URL = "https://{}/api/-/model/catalog/annotation/general-host-to-devicename".format(INSITE)
+ANNOTATION_TYPE_URL = "https://{}/api/-/model/catalog/annotation/general-host-to-devicetype".format(INSITE)
+ANNOTATION_SERVICENAME_URL = "https://{}/api/-/model/catalog/annotation/general-host-to-servicename".format(INSITE)
 
 if args.dump:
 
