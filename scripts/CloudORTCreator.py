@@ -35,15 +35,29 @@ class DeviceORTCreator:
         self.logon_route = "api/v1/login"
         self.logout_route = "api/v1/logout"
         self.annotation_route = "api/-/model/catalog/annotation/ort-host-to-channelname"
-        self.service_name_route = "api/-/model/catalog/annotation/general-host-to-servicename"
-        self.device_type_route = "api/-/model/catalog/annotation/general-host-to-devicetype"
-        self.device_name_route = "api/-/model/catalog/annotation/general-host-to-devicename"
+        self.service_name_route = (
+            "api/-/model/catalog/annotation/general-host-to-servicename"
+        )
+        self.device_type_route = (
+            "api/-/model/catalog/annotation/general-host-to-devicetype"
+        )
+        self.device_name_route = (
+            "api/-/model/catalog/annotation/general-host-to-devicename"
+        )
 
         self.ort_host_channel = "api/-/model/catalog/annotation/ort-host-to-channelname"
-        self.ort_host_zone = "api/-/model/catalog/annotation/ort-orthost-to-availabilityzone"
-        self.ort_host_instance = "api/-/model/catalog/annotation/ort-orthost-to-instanceid"
-        self.ort_stream_channel = "api/-/model/catalog/annotation/ort-streamaddress-to-channelname"
-        self.ort_channel_host = "api/-/model/catalog/annotation/ort-channelname-to-orthost"
+        self.ort_host_zone = (
+            "api/-/model/catalog/annotation/ort-orthost-to-availabilityzone"
+        )
+        self.ort_host_instance = (
+            "api/-/model/catalog/annotation/ort-orthost-to-instanceid"
+        )
+        self.ort_stream_channel = (
+            "api/-/model/catalog/annotation/ort-streamaddress-to-channelname"
+        )
+        self.ort_channel_host = (
+            "api/-/model/catalog/annotation/ort-channelname-to-orthost"
+        )
 
         self.aws_host_zone = "api/-/model/catalog/annotation/aws-host-to-availabilityzone"
         self.aws_host_instance = "api/-/model/catalog/annotation/aws-host-to-instanceid"
@@ -66,11 +80,25 @@ class DeviceORTCreator:
             "aggs": {
                 "hosts": {
                     "terms": {"field": "host", "size": 1000},
-                    "aggs": {"annotations": {"terms": {"field": "annotation.general.device_name", "size": 100}}},
+                    "aggs": {
+                        "annotations": {
+                            "terms": {
+                                "field": "annotation.general.device_name",
+                                "size": 100,
+                            }
+                        }
+                    },
                 },
                 "systems": {
                     "terms": {"field": "annotation.general.service_name", "size": 10},
-                    "aggs": {"annotations": {"terms": {"field": "annotation.general.device_name", "size": 1000}}},
+                    "aggs": {
+                        "annotations": {
+                            "terms": {
+                                "field": "annotation.general.device_name",
+                                "size": 1000,
+                            }
+                        }
+                    },
                 },
             },
             "size": 0,
@@ -120,7 +148,9 @@ class DeviceORTCreator:
 
                 if isinstance(device_data, dict):
 
-                    self.logger.debug("Number of devices fetched %s", len(device_data["devices"]))
+                    self.logger.debug(
+                        "Number of devices fetched %s", len(device_data["devices"])
+                    )
 
                     changes = 0
 
@@ -137,12 +167,17 @@ class DeviceORTCreator:
                         if "ORT" in device["grouping"]["tags"]:
 
                             # regex pattern match for ip-xxx-xxx-xxx-xxx
-                            for ip in self.hostname_pattern.finditer(str(device["identification"]["matchables"])):
+                            for ip in self.hostname_pattern.finditer(
+                                str(device["identification"]["matchables"])
+                            ):
 
                                 # group 0 is the full match of the ip-xxx-xxx-xxx-xxx pattern
                                 # host_bucket_list contains flat list of host name terms in the systeminfo index
                                 # if the aws ip hostname is not in the database, then the hostname is expired.
-                                if ip.group(0) not in host_bucket_list and ip.group(0) not in annotations.keys():
+                                if (
+                                    ip.group(0) not in host_bucket_list
+                                    and ip.group(0) not in annotations.keys()
+                                ):
 
                                     self.logger.info(
                                         "%s [%s] - Removing expired host: %s",
@@ -151,13 +186,21 @@ class DeviceORTCreator:
                                         ip.group(0),
                                     )
 
-                                    device["identification"]["matchables"].remove(ip.group(0))
-                                    device["identification"]["control-ips"].remove(ip.group(0))
+                                    device["identification"]["matchables"].remove(
+                                        ip.group(0)
+                                    )
+                                    device["identification"]["control-ips"].remove(
+                                        ip.group(0)
+                                    )
 
                                     # create a regular ip by joining all the groups together
                                     # remove the regular ip from the device lists
-                                    device["identification"]["matchables"].remove(".".join(ip.groups()))
-                                    device["identification"]["control-ips"].remove(".".join(ip.groups()))
+                                    device["identification"]["matchables"].remove(
+                                        ".".join(ip.groups())
+                                    )
+                                    device["identification"]["control-ips"].remove(
+                                        ".".join(ip.groups())
+                                    )
 
                                     changes += 1
 
@@ -181,10 +224,13 @@ class DeviceORTCreator:
                             # system name group. if not, then consider it dormant.
                             elif (
                                 len(device["identification"]["matchables"]) == 1
-                                and device["identification"]["matchables"][-1] in system_names.keys()
+                                and device["identification"]["matchables"][-1]
+                                in system_names.keys()
                             ):
 
-                                if device["identification"]["alias"] not in system_names.get(
+                                if device["identification"][
+                                    "alias"
+                                ] not in system_names.get(
                                     device["identification"]["matchables"][-1], []
                                 ):
 
@@ -217,12 +263,17 @@ class DeviceORTCreator:
                                 # system name
                                 if (
                                     "ORT" in device["grouping"]["tags"]
-                                    and device["identification"]["alias"] in inactive_channels
+                                    and device["identification"]["alias"]
+                                    in inactive_channels
                                     and key in device["identification"]["matchables"]
                                 ):
 
-                                    device["identification"]["matchables"] = [max(device["grouping"]["tags"], key=len)]
-                                    device["identification"]["control-ips"] = [max(device["grouping"]["tags"], key=len)]
+                                    device["identification"]["matchables"] = [
+                                        max(device["grouping"]["tags"], key=len)
+                                    ]
+                                    device["identification"]["control-ips"] = [
+                                        max(device["grouping"]["tags"], key=len)
+                                    ]
 
                                     changes += 1
 
@@ -246,8 +297,12 @@ class DeviceORTCreator:
                                     and key in device["identification"]["matchables"]
                                 ):
 
-                                    device["identification"]["matchables"] = [max(device["grouping"]["tags"], key=len)]
-                                    device["identification"]["control-ips"] = [max(device["grouping"]["tags"], key=len)]
+                                    device["identification"]["matchables"] = [
+                                        max(device["grouping"]["tags"], key=len)
+                                    ]
+                                    device["identification"]["control-ips"] = [
+                                        max(device["grouping"]["tags"], key=len)
+                                    ]
 
                                     changes += 1
 
@@ -263,21 +318,29 @@ class DeviceORTCreator:
 
                     if changes > 0:
 
-                        self.logger.info("Pushing %s Devices", len(device_data["devices"]))
+                        self.logger.info(
+                            "Pushing %s Devices", len(device_data["devices"])
+                        )
 
                         rtrn_devices = self.push_devices(device_data, http_session)
-                        self.logger.debug("Returned %s Devices", len(rtrn_devices["devices"]))
+                        self.logger.debug(
+                            "Returned %s Devices", len(rtrn_devices["devices"])
+                        )
 
                         # update the General - Host to Service Names with the device_data
                         # note: the device location is found by getting the longest string in the tag list
                         if self.sync_service_names:
-                            self.update_service_names(device_data, http_session, rebuild=True)
+                            self.update_service_names(
+                                device_data, http_session, rebuild=True
+                            )
 
                         # update the General - Host to Device Types with the device_data
                         # note: this is needed until the bug if fixed to use a sorted tags list in inSITE
                         # otherwise, device types will have the wrong tag.
                         if self.sync_device_types:
-                            self.update_device_types(device_data, http_session, rebuild=True)
+                            self.update_device_types(
+                                device_data, http_session, rebuild=True
+                            )
 
                         # rebuild the device_names so there's no unused key/value pairs.
                         self.update_device_names(device_data, http_session, rebuild=True)
@@ -312,7 +375,9 @@ class DeviceORTCreator:
 
                     if len(purge_list.keys()) > 0:
 
-                        self.logger.info("Purging %s hostnames annotations", len(purge_list.keys()))
+                        self.logger.info(
+                            "Purging %s hostnames annotations", len(purge_list.keys())
+                        )
                         self.logger.debug(json.dumps(purge_list))
 
                         # scan through each annotation, and pop out keys that are in the
@@ -325,7 +390,9 @@ class DeviceORTCreator:
                             self.aws_host_zone,
                         ]:
 
-                            annotation_data = self.get_annotation(annotation, http_session)
+                            annotation_data = self.get_annotation(
+                                annotation, http_session
+                            )
                             count = len(annotation_data.keys())
 
                             for key, _ in purge_list.items():
@@ -338,7 +405,9 @@ class DeviceORTCreator:
                                 len(annotation_data.keys()),
                             )
 
-                            self.push_annotation(annotation, annotation_data, http_session)
+                            self.push_annotation(
+                                annotation, annotation_data, http_session
+                            )
 
                     else:
                         self.logger.info("Nothing to purge")
@@ -393,19 +462,33 @@ class DeviceORTCreator:
                                         # break out - ignore this annotation
                                         if not tags:
 
-                                            self.logger.error("Missing ORT from Mediator: %s", host)
+                                            self.logger.error(
+                                                "Missing ORT from Mediator: %s", host
+                                            )
                                             break
 
                                         # if all the tags from the system name lookup matches with devices, then
                                         # check if a matchables update is needed. otherwise, the devices iteration continues,
                                         # and then a new device will be made for the new tag. (multiple systems with same ort names)
                                         # breaking causes the for else to cancel
-                                        if all(tag in device["grouping"]["tags"] for tag in tags):
+                                        if all(
+                                            tag in device["grouping"]["tags"]
+                                            for tag in tags
+                                        ):
 
-                                            if host not in device["identification"]["matchables"]:
+                                            if (
+                                                host
+                                                not in device["identification"][
+                                                    "matchables"
+                                                ]
+                                            ):
 
-                                                device["identification"]["matchables"].append(host)
-                                                device["identification"]["control-ips"].append(host)
+                                                device["identification"][
+                                                    "matchables"
+                                                ].append(host)
+                                                device["identification"][
+                                                    "control-ips"
+                                                ].append(host)
 
                                                 self.hostname_ip_convert(device)
 
@@ -415,7 +498,10 @@ class DeviceORTCreator:
                                                     "ORT: %s Updated: %s -- %s",
                                                     alias,
                                                     host,
-                                                    max(device["grouping"]["tags"], key=len),
+                                                    max(
+                                                        device["grouping"]["tags"],
+                                                        key=len,
+                                                    ),
                                                 )
 
                                             # everthing matches - no changes
@@ -425,10 +511,17 @@ class DeviceORTCreator:
                                     # breaking causes the for else to cancel.
                                     else:
 
-                                        if host not in device["identification"]["matchables"]:
+                                        if (
+                                            host
+                                            not in device["identification"]["matchables"]
+                                        ):
 
-                                            device["identification"]["matchables"].append(host)
-                                            device["identification"]["control-ips"].append(host)
+                                            device["identification"]["matchables"].append(
+                                                host
+                                            )
+                                            device["identification"][
+                                                "control-ips"
+                                            ].append(host)
 
                                             self.hostname_ip_convert(device)
 
@@ -456,7 +549,9 @@ class DeviceORTCreator:
                                 new_device["identification"]["control-ips"].append(host)
 
                                 if self.mediator_lookup:
-                                    new_device["grouping"]["tags"].extend(self.mediator_lookup.return_systems(host))
+                                    new_device["grouping"]["tags"].extend(
+                                        self.mediator_lookup.return_systems(host)
+                                    )
 
                                 self.hostname_ip_convert(new_device)
 
@@ -475,7 +570,9 @@ class DeviceORTCreator:
                         # otherwise, post everything back
                         if changes > 0:
 
-                            self.logger.info("Pushing %s Devices", len(device_data["devices"]))
+                            self.logger.info(
+                                "Pushing %s Devices", len(device_data["devices"])
+                            )
 
                             rtrn_devices = self.push_devices(device_data, http_session)
 
@@ -490,7 +587,9 @@ class DeviceORTCreator:
                             if self.sync_device_types:
                                 self.update_device_types(device_data, http_session)
 
-                            self.logger.info("Returned %s Devices", len(rtrn_devices["devices"]))
+                            self.logger.info(
+                                "Returned %s Devices", len(rtrn_devices["devices"])
+                            )
                             self.logger.debug(json.dumps(device_data, indent=1))
 
                         self.logger.info("Changes Recorded: %s", changes)
@@ -518,7 +617,9 @@ class DeviceORTCreator:
 
         try:
 
-            self.logger.debug("Logging in as user: %s, pass: %s", self.username, self.password)
+            self.logger.debug(
+                "Logging in as user: %s, pass: %s", self.username, self.password
+            )
 
             logon_params = {"username": self.username, "password": self.password}
             url = "{}://{}/{}".format(self.proto, self.address, self.logon_route)
@@ -554,7 +655,11 @@ class DeviceORTCreator:
         except Exception as e:
             self.logger.critical(e)
 
-        self.logger.warning("Failed to collect devices, reason: %s, status code: %s", resp.text, resp.status_code)
+        self.logger.warning(
+            "Failed to collect devices, reason: %s, status code: %s",
+            resp.text,
+            resp.status_code,
+        )
         return None
 
     def push_devices(self, device_data, http_session=requests):
@@ -563,7 +668,9 @@ class DeviceORTCreator:
 
             url = "{}://{}/{}".format(self.proto, self.address, self.device_route)
 
-            resp = http_session.post(url, headers=self.headers, data=json.dumps(device_data), verify=False)
+            resp = http_session.post(
+                url, headers=self.headers, data=json.dumps(device_data), verify=False
+            )
 
             if resp.status_code == 200:
                 return json.loads(resp.text)
@@ -571,7 +678,11 @@ class DeviceORTCreator:
         except Exception as e:
             self.logger.critical(e)
 
-        self.logger.warning("Failed to push devices, reason: %s, status code: %s", resp.text, resp.status_code)
+        self.logger.warning(
+            "Failed to push devices, reason: %s, status code: %s",
+            resp.text,
+            resp.status_code,
+        )
         return None
 
     def logout(self, http_session=requests):
@@ -599,7 +710,9 @@ class DeviceORTCreator:
 
             url = "{}://{}/{}".format(self.proto, self.address, self.device_name_route)
 
-            device_name_db = http_session.get(url, headers=self.headers, verify=False).json()
+            device_name_db = http_session.get(
+                url, headers=self.headers, verify=False
+            ).json()
 
             for device in device_data["devices"]:
 
@@ -613,9 +726,14 @@ class DeviceORTCreator:
             else:
                 device_name_db.update(annotations)
 
-            resp = http_session.put(url, data=json.dumps(device_name_db), headers=self.headers, verify=False)
+            resp = http_session.put(
+                url, data=json.dumps(device_name_db), headers=self.headers, verify=False
+            )
 
-            self.logger.info("Updated General - Host to Device Names with: %s keys", len(annotations.keys()))
+            self.logger.info(
+                "Updated General - Host to Device Names with: %s keys",
+                len(annotations.keys()),
+            )
 
             return resp.status_code
 
@@ -631,13 +749,17 @@ class DeviceORTCreator:
 
             url = "{}://{}/{}".format(self.proto, self.address, self.service_name_route)
 
-            service_name_db = http_session.get(url, headers=self.headers, verify=False).json()
+            service_name_db = http_session.get(
+                url, headers=self.headers, verify=False
+            ).json()
 
             for device in device_data["devices"]:
 
                 for host_name in device["identification"]["matchables"]:
 
-                    annotations.update({host_name: max(device["grouping"]["tags"], key=len)})
+                    annotations.update(
+                        {host_name: max(device["grouping"]["tags"], key=len)}
+                    )
 
             if rebuild:
                 service_name_db = annotations
@@ -645,9 +767,14 @@ class DeviceORTCreator:
             else:
                 service_name_db.update(annotations)
 
-            resp = http_session.put(url, data=json.dumps(service_name_db), headers=self.headers, verify=False)
+            resp = http_session.put(
+                url, data=json.dumps(service_name_db), headers=self.headers, verify=False
+            )
 
-            self.logger.info("Updated General - Host to Service Names with: %s keys", len(annotations.keys()))
+            self.logger.info(
+                "Updated General - Host to Service Names with: %s keys",
+                len(annotations.keys()),
+            )
 
             return resp.status_code
 
@@ -663,14 +790,20 @@ class DeviceORTCreator:
 
             url = "{}://{}/{}".format(self.proto, self.address, self.device_type_route)
 
-            device_type_db = http_session.get(url, headers=self.headers, verify=False).json()
+            device_type_db = http_session.get(
+                url, headers=self.headers, verify=False
+            ).json()
 
             for device in device_data["devices"]:
 
                 # two lists converted to sets and "&" together will produce a set of anything that matches
                 tags = set(device["grouping"]["tags"]) & set(self.sync_device_types)
 
-                _ = [annotations.update({host_name: tag}) for tag in tags for host_name in device["identification"]["matchables"]]
+                _ = [
+                    annotations.update({host_name: tag})
+                    for tag in tags
+                    for host_name in device["identification"]["matchables"]
+                ]
 
             if rebuild:
                 device_type_db = annotations
@@ -678,9 +811,14 @@ class DeviceORTCreator:
             else:
                 device_type_db.update(annotations)
 
-            resp = http_session.put(url, data=json.dumps(device_type_db), headers=self.headers, verify=False)
+            resp = http_session.put(
+                url, data=json.dumps(device_type_db), headers=self.headers, verify=False
+            )
 
-            self.logger.info("Updated General - Host to Device Type with: %s keys", len(annotations.keys()))
+            self.logger.info(
+                "Updated General - Host to Device Type with: %s keys",
+                len(annotations.keys()),
+            )
 
             return resp.status_code
 
@@ -696,13 +834,17 @@ class DeviceORTCreator:
 
             resp = http_session.get(url, headers=self.headers, verify=False).json()
 
-            self.logger.debug("Fetched Annotation Group: %s - Count: %s", annotation, len(resp.keys()))
+            self.logger.debug(
+                "Fetched Annotation Group: %s - Count: %s", annotation, len(resp.keys())
+            )
 
             return resp
 
         except Exception as e:
 
-            self.logger.critical("(get_annotation) -- Annotation Group: %s - %s", annotation, e)
+            self.logger.critical(
+                "(get_annotation) -- Annotation Group: %s - %s", annotation, e
+            )
             return None
 
     def push_annotation(self, annotation, data, http_session=requests):
@@ -711,14 +853,20 @@ class DeviceORTCreator:
 
             url = "{}://{}/{}".format(self.proto, self.address, annotation)
 
-            resp = http_session.put(url, data=json.dumps(data), headers=self.headers, verify=False)
+            resp = http_session.put(
+                url, data=json.dumps(data), headers=self.headers, verify=False
+            )
 
-            self.logger.debug("Pushed Annotation Group: %s - Status: %s", annotation, resp.status_code)
+            self.logger.debug(
+                "Pushed Annotation Group: %s - Status: %s", annotation, resp.status_code
+            )
 
             return resp.status_code
 
         except Exception as e:
-            self.logger.critical("(push_annotation) -- Annotation Group: %s - %s", annotation, e)
+            self.logger.critical(
+                "(push_annotation) -- Annotation Group: %s - %s", annotation, e
+            )
             return None
 
     def query_for_annotations(self, query, index, http_session=requests):
@@ -753,7 +901,10 @@ class DeviceORTCreator:
 
                 hostname_list.append(hostname_term["key"])
 
-                ort_names = [channel_term["key"] for channel_term in hostname_term["annotations"]["buckets"]]
+                ort_names = [
+                    channel_term["key"]
+                    for channel_term in hostname_term["annotations"]["buckets"]
+                ]
 
                 if len(ort_names) > 1:
                     hostname_multi_channel.update({hostname_term["key"]: ort_names})
@@ -761,7 +912,12 @@ class DeviceORTCreator:
             for system in resp["aggregations"]["systems"]["buckets"]:
 
                 system_name_groups.update(
-                    {system["key"]: [device_name["key"] for device_name in system["annotations"]["buckets"]]}
+                    {
+                        system["key"]: [
+                            device_name["key"]
+                            for device_name in system["annotations"]["buckets"]
+                        ]
+                    }
                 )
 
         except Exception as e:
@@ -899,7 +1055,9 @@ def main(data):
     sub_update = sub.add_parser("update", help="Discovery new and Update ORT devices")
     sub_update.set_defaults(which="update")
 
-    sub_annotations = sub.add_parser("annotations", help="Scan / Cleanup Mediator Channel ORT Annotations")
+    sub_annotations = sub.add_parser(
+        "annotations", help="Scan / Cleanup Mediator Channel ORT Annotations"
+    )
     sub_annotations.set_defaults(which="annotations")
 
     sub_devices = sub.add_parser("devices", help="Scan / Cleanup inSITE ORT Devices")
@@ -968,7 +1126,9 @@ def main(data):
 
     if args.info_center_systems:
 
-        params["mediator"]["hosts"] = [tuple(x.split("::")) for x in args.info_center_systems if "::" in x]
+        params["mediator"]["hosts"] = [
+            tuple(x.split("::")) for x in args.info_center_systems if "::" in x
+        ]
 
         if len(params["mediator"]["hosts"]) < 1:
             print("No valid mediator info center hosts")
@@ -983,7 +1143,9 @@ def main(data):
     if args.remote_syslog:
 
         logger = logging.getLogger(socket.gethostname())
-        handler = logging.handlers.SysLogHandler(address=(params["address"], 514), facility=19)
+        handler = logging.handlers.SysLogHandler(
+            address=(params["address"], 514), facility=19
+        )
         formatter = logging.Formatter(
             "%(asctime)s %(name)s "
             + 'CloudORTCreator[%(process)d]: device_meta=({"lineno": %(lineno)d, "function": "%(funcName)s", "message": "%(message)s"})'
@@ -993,7 +1155,9 @@ def main(data):
 
         logger = logging.getLogger(__name__)
         handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter("%(asctime)s : %(levelname)s : %(name)s %(funcName)s:%(lineno)d : %(message)s")
+        formatter = logging.Formatter(
+            "%(asctime)s : %(levelname)s : %(name)s %(funcName)s:%(lineno)d : %(message)s"
+        )
 
     logger.setLevel(logging.INFO)
     handler.setFormatter(formatter)
