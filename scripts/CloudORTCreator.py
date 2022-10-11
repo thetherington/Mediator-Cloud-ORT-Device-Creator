@@ -31,12 +31,15 @@ class DeviceORTCreator:
         self.username = "admin"
         self.password = "admin"
 
-        self.device_route = "api/-/settings/device"
+        self.device_route = "api/-/settings/device-identity"
         self.logon_route = "api/v1/login"
         self.logout_route = "api/v1/logout"
         self.annotation_route = "api/-/model/catalog/annotation/ort-host-to-channelname"
         self.service_name_route = (
             "api/-/model/catalog/annotation/general-host-to-servicename"
+        )
+        self.system_name_route = (
+            "api/-/model/catalog/annotation/general-host-to-systemname"
         )
         self.device_type_route = (
             "api/-/model/catalog/annotation/general-host-to-devicetype"
@@ -79,7 +82,7 @@ class DeviceORTCreator:
             "query": {"range": {"@timestamp": {"from": "now-10d", "to": "now"}}},
             "aggs": {
                 "hosts": {
-                    "terms": {"field": "host", "size": 1000},
+                    "terms": {"field": "agent.hostname", "size": 1000},
                     "aggs": {
                         "annotations": {
                             "terms": {
@@ -123,7 +126,7 @@ class DeviceORTCreator:
             # single system set
             if key == "system_name" and value:
                 self.device_template["grouping"]["tags"].append(self.system_name)
-                self.sync_service_names = True
+                # self.sync_service_names = True
 
         self.hostname_pattern = re.compile(
             r"ip-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\-(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
@@ -327,20 +330,14 @@ class DeviceORTCreator:
                             "Returned %s Devices", len(rtrn_devices["devices"])
                         )
 
-                        # update the General - Host to Service Names with the device_data
+                        # update the General - Host to System Names with the device_data
                         # note: the device location is found by getting the longest string in the tag list
-                        if self.sync_service_names:
-                            self.update_service_names(
-                                device_data, http_session, rebuild=True
-                            )
+                        self.update_system_names(device_data, http_session, rebuild=True)
 
                         # update the General - Host to Device Types with the device_data
                         # note: this is needed until the bug if fixed to use a sorted tags list in inSITE
                         # otherwise, device types will have the wrong tag.
-                        if self.sync_device_types:
-                            self.update_device_types(
-                                device_data, http_session, rebuild=True
-                            )
+                        self.update_device_types(device_data, http_session, rebuild=True)
 
                         # rebuild the device_names so there's no unused key/value pairs.
                         self.update_device_names(device_data, http_session, rebuild=True)
@@ -578,14 +575,18 @@ class DeviceORTCreator:
 
                             # update the General - Host to Service Names with the device_data
                             # note: the device location is found by getting the longest string in the tag list
-                            if self.sync_service_names:
-                                self.update_service_names(device_data, http_session)
+
+                            # don't have to do this update anymore in v11 since updating a device updates annotation types now
+                            # if self.sync_service_names:
+                            #     self.update_service_names(device_data, http_session)
 
                             # update the General - Host to Device Types with the device_data
                             # note: this is needed until the bug if fixed to use a sorted tags list in inSITE
                             # otherwise, device types will have the wrong tag.
-                            if self.sync_device_types:
-                                self.update_device_types(device_data, http_session)
+
+                            # don't have to do this update anymore in v11 since updating a device updates annotation types now
+                            # if self.sync_device_types:
+                            #     self.update_device_types(device_data, http_session)
 
                             self.logger.info(
                                 "Returned %s Devices", len(rtrn_devices["devices"])
@@ -777,7 +778,46 @@ class DeviceORTCreator:
             )
 
             return resp.status_code
+        except Exception as e:
+            self.logger.critical(e)
+            return None
 
+    def update_system_names(self, device_data, http_session=requests, rebuild=False):
+
+        try:
+
+            annotations = {}
+
+            url = "{}://{}/{}".format(self.proto, self.address, self.system_name_route)
+
+            system_name_db = http_session.get(
+                url, headers=self.headers, verify=False
+            ).json()
+
+            for device in device_data["devices"]:
+
+                for host_name in device["identification"]["matchables"]:
+
+                    annotations.update(
+                        {host_name: max(device["grouping"]["tags"], key=len)}
+                    )
+
+            if rebuild:
+                system_name_db = annotations
+
+            else:
+                system_name_db.update(annotations)
+
+            resp = http_session.put(
+                url, data=json.dumps(system_name_db), headers=self.headers, verify=False
+            )
+
+            self.logger.info(
+                "Updated General - Host to System Names with: %s keys",
+                len(annotations.keys()),
+            )
+
+            return resp.status_code
         except Exception as e:
             self.logger.critical(e)
             return None
@@ -797,7 +837,20 @@ class DeviceORTCreator:
             for device in device_data["devices"]:
 
                 # two lists converted to sets and "&" together will produce a set of anything that matches
-                tags = set(device["grouping"]["tags"]) & set(self.sync_device_types)
+                # this code was to match known types with an item from the tags list
+                # this was because the tags were often re-arranged for some reason making the type not easy to find
+
+                # tags = set(device["grouping"]["tags"]) & set(
+                #     ["Core", "Compute", "inSITE", "CloudBridge", "ORT"]
+                # )
+
+                # i've found that in inSITE v11 that the tags list is always ordered the same
+                # and the type is the second item in the tags list
+                if len(device["grouping"]["tags"]) >= 2:
+                    tags = [device["grouping"]["tags"][1]]
+                else:
+                    # no type if tags doesn't contain atleast 2 items.
+                    tags = []
 
                 _ = [
                     annotations.update({host_name: tag})
@@ -1112,11 +1165,23 @@ def main(data):
     )
 
     args = parser.parse_args()
-    # args = parser.parse_args(["-insite", "172.16.112.14", "-sub", "update"])
+    # args = parser.parse_args(
+    #     [
+    #         "-insite",
+    #         "172.16.112.40",
+    #         "-insite",
+    #         "172.16.112.40",
+    #         "-system",
+    #         "MAM",
+    #         "devices",
+    #     ]
+    # )
 
     params = {
         "address": args.insite_host,
-        "sync_device_types": args.sync_device_types,
+        # "sync_device_types": args.sync_device_types,
+        "sync_device_types": None,
+        "sync_service_names": None,
         "system_name": args.system_name,
         "mediator": {
             "hosts": [],
@@ -1148,7 +1213,7 @@ def main(data):
         )
         formatter = logging.Formatter(
             "%(asctime)s %(name)s "
-            + 'CloudORTCreator[%(process)d]: device_meta=({"lineno": %(lineno)d, "function": "%(funcName)s", "message": "%(message)s"})'
+            + 'CloudORTCreator[%(process)d]: device_meta=({"lineno": "%(lineno)s", "function": "%(funcName)s", "message": "%(message)s"}) '
         )
 
     else:
