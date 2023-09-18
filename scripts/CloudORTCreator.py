@@ -64,6 +64,9 @@ class DeviceORTCreator:
         self.aws_host_zone = "api/-/model/catalog/annotation/aws-host-to-availabilityzone"
         self.aws_host_instance = "api/-/model/catalog/annotation/aws-host-to-instanceid"
 
+        self.pollers_list = "proxy/insite/pll-1/api/-/model/pollers"
+        self.poller = "proxy/insite/pll-1/api/-/model/poller"
+
         self.headers = {"Content-Type": "application/json;charset=UTF-8"}
 
         self.device_template = {
@@ -325,6 +328,54 @@ class DeviceORTCreator:
                     self.logger.info("Device Changes Recorded: %s", changes)
 
                 self.logout(http_session)
+
+    def update_ping_devices(self):
+        with requests.Session() as http_session:
+            # check that the logon process worked
+            if self.logon(http_session):
+                host_channels = self.get_annotation(self.ort_host_channel, http_session)
+
+                hosts_annotations = []
+
+                # iterate through each key (ip-xx-xx-xx) and convert to regular ip address and append to ips
+                for hostname in host_channels.keys():
+                    for match in self.hostname_pattern.finditer(hostname):
+                        hosts_annotations.append(".".join(match.groups()))
+
+                pollers = self.fetch_pollers(http_session)
+
+                # Check if pollers is not none
+                if pollers:
+                    # iterate through all the pollers
+                    for poller in pollers["pollers"]:
+                        # if the name is the known "_ORT Ping" or user supplied
+                        if poller["identification"]["name"] == self.ping_poller:
+                            # check if there needs to be an update by comparing two lists together as a set
+                            if set(poller["input"]["hosts"]) != set(hosts_annotations):
+                                additons = list(
+                                    set(hosts_annotations) - set(poller["input"]["hosts"])
+                                )
+                                removals = list(
+                                    set(poller["input"]["hosts"]) - set(hosts_annotations)
+                                )
+
+                                poller["input"]["hosts"] = hosts_annotations
+
+                                if self.update_poller(poller, http_session):
+                                    for ip in additons:
+                                        self.logger.info(
+                                            "Adding %s to ORT ping poller", ip
+                                        )
+
+                                    for ip in removals:
+                                        self.logger.info(
+                                            "Removing %s from ORT ping poller", ip
+                                        )
+
+                                return
+
+                            self.logger.info("No ping poller updates")
+                            break
 
     def scan_ort_annotations(self):
         with requests.Session() as http_session:
@@ -606,6 +657,48 @@ class DeviceORTCreator:
 
         self.logger.warning(
             "Failed to collect devices, reason: %s, status code: %s",
+            resp.text,
+            resp.status_code,
+        )
+        return None
+
+    def fetch_pollers(self, http_session=requests):
+        try:
+            url = "{}://{}/{}".format(self.proto, self.address, self.pollers_list)
+
+            resp = http_session.get(url, headers=self.headers, verify=False)
+
+            if resp.status_code == 200:
+                return json.loads(resp.text)
+        except Exception as e:
+            self.logger.critical(e)
+
+        self.logger.warning(
+            "Failed to fetch pollers, reason: %s, status code: %s",
+            resp.text,
+            resp.status_code,
+        )
+        return None
+
+    def update_poller(self, poller, http_session=requests):
+        try:
+            uid = poller["identification"]["uid"]
+            data = {"poller": poller}
+
+            url = "{}://{}/{}/{}".format(self.proto, self.address, self.poller, uid)
+
+            resp = http_session.post(
+                url, headers=self.headers, data=json.dumps(data), verify=False
+            )
+
+            if resp.status_code == 200:
+                return json.loads(resp.text)
+
+        except Exception as e:
+            self.logger.critical(e)
+
+        self.logger.warning(
+            "Failed to save poller, reason: %s, status code: %s",
             resp.text,
             resp.status_code,
         )
@@ -1026,6 +1119,9 @@ def main(data):
     sub_devices = sub.add_parser("devices", help="Scan / Cleanup inSITE ORT Devices")
     sub_devices.set_defaults(which="devices")
 
+    sub_ping = sub.add_parser("ping", help="Scan / Cleanup inSITE Ping Hosts")
+    sub_ping.set_defaults(which="ping")
+
     parser.add_argument(
         "-insite",
         "--insite-host",
@@ -1073,6 +1169,14 @@ def main(data):
         action="store_true",
         help="Remote Syslog",
     )
+    parser.add_argument(
+        "-poller",
+        "--ping-poller",
+        required=False,
+        metavar="poller",
+        default="_ORT Ping",
+        help="Ping Poller Name",
+    )
 
     args = parser.parse_args()
     # args = parser.parse_args(
@@ -1093,6 +1197,7 @@ def main(data):
         "sync_device_types": None,
         "sync_service_names": None,
         "system_name": args.system_name,
+        "ping_poller": args.ping_poller,
         "mediator": {
             "hosts": [],
             "sub": args.mediator_sub,
@@ -1135,16 +1240,23 @@ def main(data):
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-    ort_creator = DeviceORTCreator(logger, **params)
-
     if args.which == "update":
+        ort_creator = DeviceORTCreator(logger, **params)
         ort_creator.process()
 
     elif args.which == "annotations":
+        ort_creator = DeviceORTCreator(logger, **params)
         ort_creator.scan_ort_annotations()
 
     elif args.which == "devices":
+        ort_creator = DeviceORTCreator(logger, **params)
         ort_creator.scan_ort_devices()
+
+    elif args.which == "ping":
+        params.pop("mediator")
+        params.pop("system_name")
+        ort_creator = DeviceORTCreator(logger, **params)
+        ort_creator.update_ping_devices()
 
 
 if __name__ == "__main__":
