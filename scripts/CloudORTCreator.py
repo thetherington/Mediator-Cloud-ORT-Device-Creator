@@ -730,9 +730,11 @@ class DeviceORTCreator:
 
             for device in device_data["devices"]:
                 for host_name in device["identification"]["matchables"]:
-                    annotations.update(
-                        {host_name: max(device["grouping"]["tags"], key=len)}
-                    )
+                    if len(device["grouping"]["tags"]) >= 3:
+                        annotations.update({host_name: device["grouping"]["tags"][2]})
+                    # annotations.update(
+                    #     {host_name: max(device["grouping"]["tags"], key=len)}
+                    # )
 
             if rebuild:
                 system_name_db = annotations
@@ -979,6 +981,7 @@ class MediatorServiceCollector:
                 get_element(service, "HostName")
                 for service in doc.getElementsByTagName("ServiceReg")
                 if get_element(service, "Name") == "OvertureRT Driver"
+                or get_element(service, "Name") == "Media File Manager"
             ]
         )
 
@@ -1147,10 +1150,6 @@ def main(data):
 if __name__ == "__main__":
     hosts = []
 
-    # hosts = [
-    #     ("10.127.3.56", "MAM_Production"),
-    #     ("10.127.17.57", "US_TX1_Production"),
-    #     ("10.127.130.177", "EU_TX1_Production"),
-    # ]
+    hosts = [("10.32.212.95", "PLAY-1"), ("10.32.227.75", "PLAY-2")]
 
     main(hosts)
